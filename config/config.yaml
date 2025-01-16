@@ -1,0 +1,25 @@
+OpenGm: true
+
+MySql:
+  Addr: "127.0.0.1"
+  Port: 3306
+  User: "root"
+  PassWord: "123456"
+  DBName: "simple_game"
+
+Redis:
+  Addr: "127.0.0.1:6379"
+  PassWord: ""
+  DB: 4
+
+Tcp:
+  Addr: "127.0.0.1"
+  Port: "8888"
+
+Http:
+  Addr: "127.0.0.1"
+  Port: "9902"
+
+Rpc:
+  Addr: "127.0.0.1"
+  Port: "9901"
