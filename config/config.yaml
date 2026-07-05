@@ -1,4 +1,5 @@
 OpenGm: true
+SaveLog: false
 
 MySql:
   Addr: "127.0.0.1"
@@ -12,9 +13,14 @@ Redis:
   PassWord: ""
   DB: 4
 
-Tcp:
-  Addr: "127.0.0.1"
-  Port: "8888"
+# 多协议监听器：可同时配置多种网络接入方式
+Listeners:
+  - Network: tcp
+    Addr: "127.0.0.1"
+    Port: "8888"
+  - Network: ws
+    Addr: "127.0.0.1"
+    Port: "8889"
 
 Http:
   Addr: "127.0.0.1"

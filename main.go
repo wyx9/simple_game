@@ -24,6 +24,15 @@ func main() {
 	// 基础配置
 	config.Start()
 
+	// 根据配置决定是否启用文件日志
+	if config.Conf.SaveLog {
+		if err := pkg.InitLogFile(); err != nil {
+			fmt.Println("init log file failed:", err)
+		}
+	} else {
+		fmt.Println("log file saving is disabled (SaveLog: false)")
+	}
+
 	// 信号处理
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

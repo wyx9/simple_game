@@ -15,7 +15,8 @@ var configFilePath2 = "/app/config/config.yaml"
 // Note: struct fields must be public in order for unmarshal to
 // correctly populate the data.
 type Config struct {
-	OpenGm bool `yaml:"OpenGm"`
+	OpenGm  bool `yaml:"OpenGm"`
+	SaveLog bool `yaml:"SaveLog"`
 	MySql  struct {
 		Addr     string `yaml:"Addr"`
 		Port     int    `yaml:"Port"`
@@ -30,10 +31,8 @@ type Config struct {
 		DB       int    `yaml:"DB"`
 	} `yaml:"Redis"`
 
-	Tcp struct {
-		Addr string `yaml:"Addr"`
-		Port string `yaml:"Port"`
-	} `yaml:"Tcp"`
+	// Listeners 替代原 Tcp 字段，支持同时监听多种协议（tcp/ws/kcp...）。
+	Listeners []ListenerConfig `yaml:"Listeners"`
 
 	Http struct {
 		Addr string `yaml:"Addr"`
@@ -44,6 +43,13 @@ type Config struct {
 		Addr string `yaml:"Addr"`
 		Port string `yaml:"Port"`
 	} `yaml:"Rpc"`
+}
+
+// ListenerConfig 对应 config.yaml 中 Listeners 的一个条目。
+type ListenerConfig struct {
+	Network string `yaml:"Network"` // "tcp" / "ws" / ...
+	Addr    string `yaml:"Addr"`
+	Port    string `yaml:"Port"`
 }
 
 var Conf = Config{}

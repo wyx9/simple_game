@@ -25,9 +25,10 @@ func Route(ctx interface{}, name string, msg any) (Handler, proto.Message, error
 		return nil, nil, errors.New("not found handler")
 	}
 	f, ok := ProtoBufFactory[name]
-	if ok {
-		_ = proto.Unmarshal(msg.([]byte), f())
+	if !ok {
+		return nil, nil, errors.New("not found proto factory for: " + name)
 	}
+	_ = proto.Unmarshal(msg.([]byte), f())
 	message := handler(ctx, f())
 	return handler, message, nil
 

@@ -3,8 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net"
 	"simple_game/api/protos/pt"
 	"simple_game/config"
 	"simple_game/libs"
@@ -27,20 +25,18 @@ const (
 
 // Server 游戏服务器结构体
 type Server struct {
-	Ip       string                 // 服务器IP地址
-	port     int                    // 服务器监听端口
-	connMap  map[string]*Connection // 连接管理映射表，key为连接ID
-	connLock sync.RWMutex           // 连接映射表的读写锁
-	listener net.Listener           // TCP监听器
-	ctx      context.Context        // 服务器上下文
-	cancel   context.CancelFunc     // 上下文取消函数
-	wg       sync.WaitGroup         // 等待组，用于优雅关闭
+	listeners []pkg.Listener      // 多协议监听器列表（tcp/ws/...）
+	connMap   map[string]*Connection // 连接管理映射表，key为连接ID
+	connLock  sync.RWMutex        // 连接映射表的读写锁
+	ctx       context.Context     // 服务器上下文
+	cancel    context.CancelFunc  // 上下文取消函数
+	wg        sync.WaitGroup      // 等待组，用于优雅关闭
 }
 
 // Connection 客户端连接结构体
 type Connection struct {
 	uuid       string             // 连接唯一标识符
-	conn       net.Conn           // TCP连接对象
+	conn       pkg.NetConn        // 网络连接（协议无关）
 	lastActive time.Time          // 最后活跃时间
 	ctx        context.Context    // 连接上下文
 	cancel     context.CancelFunc // 连接取消函数
@@ -50,11 +46,9 @@ type Connection struct {
 }
 
 // NewServer 创建新的服务器实例
-func NewServer(ip string, port int) *Server {
+func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	server := &Server{
-		Ip:      ip,
-		port:    port,
 		connMap: make(map[string]*Connection),
 		ctx:     ctx,
 		cancel:  cancel,
@@ -65,30 +59,32 @@ func NewServer(ip string, port int) *Server {
 // GlobalServer 全局服务器实例
 var GlobalServer *Server
 
-// Start 启动游戏服务器
+// Start 启动游戏服务器，根据 config.Conf.Listeners 同时监听多种协议。
 func Start() {
-	// 从配置中获取端口
-	port, err := strconv.Atoi(config.Conf.Tcp.Port)
-	if err != nil {
+	if len(config.Conf.Listeners) == 0 {
+		pkg.ERROR("no listeners configured")
 		return
 	}
-	server := NewServer(config.Conf.Tcp.Addr, port)
+
+	server := NewServer()
 	GlobalServer = server
 
-	// 创建TCP监听器
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", server.Ip, port))
-	if err != nil {
-		return
+	for _, lc := range config.Conf.Listeners {
+		l, err := pkg.NewListener(lc.Network, lc.Addr, lc.Port)
+		if err != nil {
+			pkg.ERROR("create listener failed", lc.Network, lc.Addr, lc.Port, err)
+			continue
+		}
+		server.listeners = append(server.listeners, l)
+		pkg.INFO("listener start:", lc.Network, l.Addr())
+
+		server.wg.Add(1)
+		go server.serverLoop(l)
 	}
-
-	server.listener = listener
-
-	server.wg.Add(1)
-	go server.serverLoop()
 }
 
-// serverLoop 服务器主循环，处理新的连接请求
-func (s *Server) serverLoop() {
+// serverLoop 单个 listener 的主循环，处理新的连接请求
+func (s *Server) serverLoop(l pkg.Listener) {
 	defer s.wg.Done()
 
 	for {
@@ -97,10 +93,12 @@ func (s *Server) serverLoop() {
 			return
 		default:
 			// 接受新的客户端连接
-			conn, err := s.listener.Accept()
+			conn, err := l.Accept()
 			if err != nil {
-				if !strings.Contains(err.Error(), "use of close network connection") {
-					pkg.ERROR("accept server error", err)
+				errStr := err.Error()
+				if !strings.Contains(errStr, "use of close network connection") &&
+					!strings.Contains(errStr, "listener closed") {
+					pkg.ERROR("accept error", err)
 				}
 				continue
 			}
@@ -113,15 +111,13 @@ func (s *Server) serverLoop() {
 }
 
 // handleConnection 处理单个客户端连接
-func (s *Server) handleConnection(conn net.Conn) {
-	defer conn.Close()
-
-	connId := conn.RemoteAddr().String()
+func (s *Server) handleConnection(conn pkg.NetConn) {
+	connId := conn.RemoteAddr()
 	ctx, cancel := context.WithCancel(s.ctx)
 
 	// 创建新的连接实例
 	connection := &Connection{
-		uuid:       conn.RemoteAddr().String(),
+		uuid:       connId,
 		conn:       conn,
 		lastActive: time.Now(),
 		ctx:        ctx,
@@ -130,7 +126,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	// 添加连接到连接映射表
 	if !s.addConnection(connId, connection) {
-		_ = conn.Close()
 		cancel()
 		return
 	}
@@ -154,12 +149,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 				return
 			}
 
-			// 接收客户端数据
-			buf, err := pkg.RecvData(conn)
-			if err != nil {
-				return
-			}
-
+			// 接收客户端数据（协议无关：tcp 走长度头分帧，ws 走帧分帧）
+			buf, err := conn.ReadMessage()
 			if err != nil {
 				ActorManner.FindAndClosePlayer(connId)
 				return
@@ -178,7 +169,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 }
 
 // handleMessage 处理接收到的消息
-func (s *Server) handleMessage(c *Connection, buf []byte, conn net.Conn) error {
+func (s *Server) handleMessage(c *Connection, buf []byte, conn pkg.NetConn) error {
 	msg := string(buf)
 	pkg.INFO("handleMessage ,", msg)
 
@@ -245,12 +236,9 @@ func StopServer() error {
 	// 触发关闭信号
 	GlobalServer.cancel()
 
-	// 关闭监听器
-	if GlobalServer.listener != nil {
-		err := GlobalServer.listener.Close()
-		if err != nil {
-			return err
-		}
+	// 关闭所有监听器
+	for _, l := range GlobalServer.listeners {
+		_ = l.Close()
 	}
 
 	// 等待所有goroutine完成

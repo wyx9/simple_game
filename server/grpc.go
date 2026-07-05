@@ -39,7 +39,7 @@ func StartGRPC() {
 		_ = listen.Close()
 	}()
 
-	pkg.INFO("grpc server-start-", 9901)
+	pkg.INFO("grpc server start port: ", 9901)
 	// 启动gRPC服务
 	err = s.Serve(listen)
 	if err != nil {

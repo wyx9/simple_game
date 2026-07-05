@@ -43,7 +43,7 @@ func (am *AManager) Find(name string) *ActorBase {
 
 // FindAndClosePlayer 根据IP查找并关闭玩家Actor
 func (am *AManager) FindAndClosePlayer(ip string) {
-	value, ok := am.actorMap.Load(ip)
+	value, ok := am.playerMap.Load(ip)
 	if !ok {
 		return
 	}
@@ -51,9 +51,7 @@ func (am *AManager) FindAndClosePlayer(ip string) {
 	if !ok {
 		return
 	}
-	defer am.actorMap.Delete(actor.name)
-
-	actor.iActor.Stop()
+	_ = actor.Shutdown(5 * time.Second)
 }
 
 // CastMsg 向指定Actor发送异步消息

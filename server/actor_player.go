@@ -3,27 +3,19 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"simple_game/libs"
 	"simple_game/pkg"
 	"simple_game/routes"
 	"time"
-
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
-
-// 定时器间隔时间
-const tickDuration = 10 * time.Second
 
 // Player 玩家Actor结构体，实现了IActor接口
 type Player struct {
 	name       string      // 玩家名称
 	ip         string      // 玩家IP地址
 	ac         IActor      // Actor接口实现
-	conn       *net.Conn   // 网络连接
+	conn       pkg.NetConn // 网络连接（协议无关）
 	PlayerData *PlayerData // 玩家数据
-	timer      *time.Timer // 定时器，用于定期执行任务
 }
 
 // PlayerData 玩家数据结构体，用于存储玩家的基本信息
@@ -34,18 +26,14 @@ type PlayerData struct {
 
 // Start 玩家Actor启动时的初始化
 func (p *Player) Start() {
-	p.loadPlayer()       // 加载玩家数据
-	p.scheduleNextTick() // 启动定时任务
+	p.loadPlayer() // 加载玩家数据
 }
 
 // Stop 玩家Actor停止时的清理
 func (p *Player) Stop() {
 	// 持久化玩家数据
-	if p.timer != nil {
-		p.timer.Stop()
-	}
 	pkg.INFO("player stop ,player name :", p.name)
-	p.PersistenceKey()
+	p.persistence()
 }
 
 // PersistenceKey 生成玩家数据的持久化键
@@ -77,29 +65,8 @@ func (p *Player) loadPlayer() {
 
 // Handler 处理接收到的消息
 func (p *Player) Handler(msg interface{}) interface{} {
-	switch msg {
-	case "tick":
-		p.onTick()
-	default:
-		p.HandlerByClient(msg)
-	}
+	p.HandlerByClient(msg)
 	return nil
-}
-
-// scheduleNextTick 调度下一次定时任务
-func (p *Player) scheduleNextTick() {
-	time.AfterFunc(tickDuration, func() {
-		err := ActorManner.CastMsg(p.name, "tick")
-		if err != nil {
-			return
-		}
-		p.scheduleNextTick()
-	})
-}
-
-// onTick 定时任务处理函数，用于定期持久化玩家数据
-func (p *Player) onTick() {
-	p.persistence()
 }
 
 // HandlerByClient 处理来自客户端的消息
@@ -119,19 +86,18 @@ func (p *Player) HandlerByClient(msg interface{}) {
 		pkg.ERROR("handler is nil , ", handler)
 	} else {
 		pkg.DEBUG("req :", codePack.Name)
-		marshal, _ := protojson.Marshal(res)
-		pkg.DEBUG("res :", proto.MessageName(res).Name(), string(marshal))
-		c := *p.conn
-		_, _ = c.Write(marshal)
+		marshal := libs.Pack2Msg(res)
+		pkg.DEBUG("res :", string(marshal))
+		_ = p.conn.WriteMessage(marshal)
 	}
 }
 
 // StartNewPlayerActor 创建并启动新的玩家Actor
-func StartNewPlayerActor(name string, conn net.Conn) (*Player, error) {
+func StartNewPlayerActor(name string, conn pkg.NetConn) (*Player, error) {
 	playerActor := &Player{
 		name: name,
-		ip:   conn.RemoteAddr().String(),
-		conn: &conn,
+		ip:   conn.RemoteAddr(),
+		conn: conn,
 		PlayerData: &PlayerData{
 			Name:        name,
 			LastLoginAt: time.Now().Unix(),
