@@ -8,8 +8,8 @@ import (
 
 	"nhooyr.io/websocket"
 
-	"simple_game/api/protos/pt"
-	"simple_game/libs"
+	"simple_game/game/api/protos/pt"
+	"simple_game/game/libs"
 )
 
 // WebSocket 测试客户端，对应服务端 ws listener（默认 ws://127.0.0.1:8889/ws）。

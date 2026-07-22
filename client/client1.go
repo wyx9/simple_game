@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"net"
-	"simple_game/api/protos/pt"
-	"simple_game/libs"
-	"simple_game/pkg"
+	"simple_game/game/api/protos/pt"
+	"simple_game/game/libs"
+	"simple_game/game/pkg"
 	"sync/atomic"
 	"time"
 )

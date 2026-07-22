@@ -7,7 +7,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"os"
-	pt2 "simple_game/api/protos/pt"
+	pt2 "simple_game/game/api/protos/pt"
 )
 
 func RpcClient() {

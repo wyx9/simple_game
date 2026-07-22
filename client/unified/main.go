@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"simple_game/api/protos/pt"
-	"simple_game/libs"
-	"simple_game/pkg"
+	"simple_game/game/api/protos/pt"
+	"simple_game/game/libs"
+	"simple_game/game/pkg"
 )
 
 // 统一测试客户端 — 支持 TCP 和 WebSocket，复用 NetConn 抽象。
