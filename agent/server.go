@@ -1,0 +1,211 @@
+// agent/server.go
+package main
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"strings"
+
+	"github.com/go-redis/redis/v8"
+
+	libs "simple_game/game/libs"
+	pkg "simple_game/game/pkg"
+	"simple_game/game/tunnel"
+)
+
+// handshakeMsg 客户端握手消息（spec 5.1b）。
+type handshakeMsg struct {
+	Token   string `json:"token"`
+	Version int    `json:"version"`
+}
+
+// playerReg Redis 中存储的玩家注册信息。
+type playerReg struct {
+	AgentAddr string `json:"agent_addr"`
+	GameAddr  string `json:"game_addr"`
+}
+
+// startAgent 启动 Agent 网关服务。
+func startAgent(listeners []listenerCfg, redisCfg redisCfg) {
+	// 初始化 Redis 客户端（agent 独立管理，不使用 pkg.RCtx）
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     redisCfg.Addr,
+		Password: redisCfg.PassWord,
+		DB:       redisCfg.DB,
+	})
+
+	for _, lc := range listeners {
+		l, err := pkg.NewListener(lc.Network, lc.Addr, lc.Port)
+		if err != nil {
+			pkg.ERROR("agent listener create failed:", lc.Network, lc.Addr, lc.Port, err)
+			continue
+		}
+		pkg.INFO("agent listener start:", lc.Network, l.Addr())
+		go serveListener(l, rdb)
+	}
+}
+
+// serveListener accept 客户端连接并为每个连接创建 Session。
+func serveListener(l pkg.Listener, rdb *redis.Client) {
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			if strings.Contains(err.Error(), "closed") {
+				return
+			}
+			pkg.ERROR("agent accept error:", err)
+			continue
+		}
+		go handleClient(conn, rdb)
+	}
+}
+
+// handleClient 处理单个客户端连接：握手 → 建连 Game → 双向转发。
+func handleClient(clientConn pkg.NetConn, rdb *redis.Client) {
+	// 1. 读握手消息
+	data, err := clientConn.ReadMessage()
+	if err != nil {
+		pkg.ERROR("read handshake from client failed:", err)
+		_ = clientConn.Close()
+		return
+	}
+
+	hs := &handshakeMsg{}
+	if err := json.Unmarshal(data, hs); err != nil {
+		pkg.ERROR("parse handshake failed:", err)
+		_ = clientConn.Close()
+		return
+	}
+
+	// 2. 从 token 中提取 player_name（不验证签名 — 由 Game 验证）
+	playerName := extractSubFromToken(hs.Token)
+	if playerName == "" {
+		pkg.ERROR("extract player name from token failed")
+		_ = clientConn.Close()
+		return
+	}
+
+	// 3. 查 Redis 获取 game_addr
+	val, err := rdb.Get(rdb.Context(), "player:"+playerName).Result()
+	if err != nil {
+		pkg.ERROR("redis get player info failed:", err)
+		_ = clientConn.Close()
+		return
+	}
+	reg := &playerReg{}
+	if err := json.Unmarshal([]byte(val), reg); err != nil {
+		pkg.ERROR("parse player reg failed:", err)
+		_ = clientConn.Close()
+		return
+	}
+
+	// 4. 建连 Game
+	gameConn, err := pkg.Dial("tcp", reg.GameAddr)
+	if err != nil {
+		pkg.ERROR("dial game failed:", reg.GameAddr, err)
+		_ = clientConn.WriteMessage([]byte(`{"error":"game unavailable"}`))
+		_ = clientConn.Close()
+		return
+	}
+
+	// 5. 转发握手消息到 Game
+	_ = gameConn.WriteMessage(data)
+
+	// 6. 等待 Game 握手确认
+	resp, err := gameConn.ReadMessage()
+	if err != nil {
+		pkg.ERROR("read game handshake response failed:", err)
+		_ = clientConn.Close()
+		_ = gameConn.Close()
+		return
+	}
+	// 转发握手结果给客户端
+	tm := tunnel.UnpackTunnel(resp)
+	var clientResp []byte
+	if tm != nil && tm.Name == "HandshakeOk" {
+		clientResp = []byte(`{"status":"ok"}`)
+	} else {
+		clientResp = []byte(`{"status":"error","detail":"handshake failed"}`)
+	}
+	_ = clientConn.WriteMessage(clientResp)
+
+	// 7. 创建 Session 并启动双向转发
+	sess := &Session{
+		TunnelID:   playerName,
+		ClientConn: clientConn,
+		GameConn:   gameConn,
+	}
+	sessionMap.Store(playerName, sess)
+	defer func() {
+		sessionMap.Delete(playerName)
+		_ = clientConn.Close()
+		_ = gameConn.Close()
+	}()
+
+	// 启动双向转发
+	go clientToGame(sess)
+	gameToClient(sess)
+}
+
+// clientToGame 客户端→Game 转发。
+func clientToGame(sess *Session) {
+	for {
+		data, err := sess.ClientConn.ReadMessage()
+		if err != nil {
+			_ = sess.GameConn.Close()
+			return
+		}
+		// 解析 PacketMsg 提取 name/data，注入 tunnel_id
+		codePack := libs.DeCodePack(data)
+		if codePack == nil {
+			continue
+		}
+		wrapped := tunnel.PackTunnelRaw(codePack.Name, codePack.Data, sess.TunnelID)
+		if err := sess.GameConn.WriteMessage(wrapped); err != nil {
+			_ = sess.ClientConn.Close()
+			return
+		}
+	}
+}
+
+// gameToClient Game→客户端 转发。
+func gameToClient(sess *Session) {
+	for {
+		data, err := sess.GameConn.ReadMessage()
+		if err != nil {
+			_ = sess.ClientConn.Close()
+			return
+		}
+		// 解包 TunnelMsg 获取原始 PacketMsg
+		tm := tunnel.UnpackTunnel(data)
+		if tm == nil {
+			continue
+		}
+		// 还原为 PacketMsg JSON 发送给客户端
+		raw := libs.EnCodePack(&libs.PacketMsg{Name: tm.Name, Data: tm.Data})
+		if err := sess.ClientConn.WriteMessage(raw); err != nil {
+			_ = sess.GameConn.Close()
+			return
+		}
+	}
+}
+
+// extractSubFromToken 从 JWT token 中提取 sub（player_name），不验证签名。
+func extractSubFromToken(tokenStr string) string {
+	parts := strings.Split(tokenStr, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	// JWT payload 是 base64url 编码的 JSON
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Sub string `json:"sub"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+	return claims.Sub
+}
