@@ -2,9 +2,9 @@ package register
 
 import (
 	"google.golang.org/protobuf/proto"
-	"simple_game/api/protos/pt"
-	"simple_game/controller"
-	"simple_game/routes"
+	"simple_game/game/api/protos/pt"
+	"simple_game/game/controller"
+	"simple_game/game/routes"
 )
 
 func RegisteredRoute() {
