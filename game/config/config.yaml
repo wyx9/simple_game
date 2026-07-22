@@ -1,0 +1,24 @@
+# game/config/config.yaml
+Listen:
+  Addr: "127.0.0.1"
+  Port: "9900"
+
+Grpc:
+  Addr: "127.0.0.1"
+  Port: "9901"
+
+SaveLog: false
+
+TokenSecret: "shared-secret-key"
+
+MySql:
+  Addr: "127.0.0.1"
+  Port: 3306
+  User: "root"
+  PassWord: "123456"
+  DBName: "simple_game"
+
+Redis:
+  Addr: "127.0.0.1:6379"
+  PassWord: ""
+  DB: 4

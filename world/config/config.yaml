@@ -1,0 +1,22 @@
+# world/config/config.yaml
+Http:
+  Addr: "127.0.0.1"
+  Port: "9902"
+
+AgentAddr: "127.0.0.1:8888"
+TokenSecret: "shared-secret-key"
+TokenExpire: 24h
+
+SaveLog: false
+
+MySql:
+  Addr: "127.0.0.1"
+  Port: 3306
+  User: "root"
+  PassWord: "123456"
+  DBName: "simple_game"
+
+Redis:
+  Addr: "127.0.0.1:6379"
+  PassWord: ""
+  DB: 4

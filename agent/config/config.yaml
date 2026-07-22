@@ -1,0 +1,15 @@
+# agent/config/config.yaml
+Listeners:
+  - Network: tcp
+    Addr: "0.0.0.0"
+    Port: "8888"
+  - Network: ws
+    Addr: "0.0.0.0"
+    Port: "8889"
+
+GameAddr: "127.0.0.1:9900"
+
+Redis:
+  Addr: "127.0.0.1:6379"
+  PassWord: ""
+  DB: 4
