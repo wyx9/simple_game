@@ -3,7 +3,6 @@ package pkg
 import (
 	"context"
 	"github.com/go-redis/redis/v8"
-	"simple_game/config"
 )
 
 //https://redis.uptrace.dev/guide/go-redis.html#installation
@@ -12,8 +11,7 @@ var RedisClient *redis.Client
 
 var RCtx context.Context
 
-func RedisStart() {
-	addr, password, db := config.Conf.Redis.Addr, config.Conf.Redis.PassWord, config.Conf.Redis.DB
+func RedisStart(addr, password string, db int) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     addr,
 		Password: password, // no password set
