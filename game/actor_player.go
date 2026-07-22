@@ -1,11 +1,11 @@
-package server
+package game
 
 import (
 	"encoding/json"
 	"fmt"
-	"simple_game/libs"
-	"simple_game/pkg"
-	"simple_game/routes"
+	"simple_game/game/libs"
+	"simple_game/game/pkg"
+	"simple_game/game/routes"
 	"time"
 )
 
