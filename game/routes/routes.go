@@ -3,7 +3,7 @@ package routes
 import (
 	"errors"
 	"google.golang.org/protobuf/proto"
-	"simple_game/pkg"
+	"simple_game/game/pkg"
 )
 
 type Handler func(ctx interface{}, req any) proto.Message

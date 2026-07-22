@@ -3,7 +3,7 @@ package routes
 import (
 	"google.golang.org/protobuf/proto"
 	"reflect"
-	"simple_game/api/protos/pt"
+	"simple_game/game/api/protos/pt"
 )
 
 var ProtoBufFactory = make(map[string]func() proto.Message)
