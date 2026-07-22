@@ -1,9 +1,9 @@
-package server
+package game
 
 import (
 	"context"
 	"errors"
-	"simple_game/pkg"
+	"simple_game/game/pkg"
 	"sync/atomic"
 	"time"
 )

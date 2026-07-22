@@ -1,11 +1,11 @@
-package server
+package game
 
 import (
 	"context"
 	"fmt"
 	"net"
-	pt2 "simple_game/api/protos/pt"
-	"simple_game/pkg"
+	pt2 "simple_game/game/api/protos/pt"
+	"simple_game/game/pkg"
 
 	"google.golang.org/grpc"
 )
