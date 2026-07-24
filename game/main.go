@@ -1,4 +1,4 @@
-// game/cmd/main.go
+// game/main.go
 package main
 
 import (
@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"simple_game/game"
+	engine "simple_game/game/engine"
 	"simple_game/game/pkg"
 	"simple_game/game/register"
 	"simple_game/game/routes"
@@ -15,7 +15,7 @@ import (
 
 func main() {
 	// 加载配置
-	cfg, err := game.LoadGameConfig("game/config/config.yaml")
+	cfg, err := engine.LoadGameConfig("game/config/config.yaml")
 	if err != nil {
 		fmt.Println("load config failed:", err)
 		os.Exit(1)
@@ -42,8 +42,8 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// 启动服务
-	go game.StartGRPC()
-	go game.Start(
+	go engine.StartGRPC()
+	go engine.Start(
 		fmt.Sprintf("%s:%s", cfg.Listen.Addr, cfg.Listen.Port),
 		cfg.TokenSecret,
 	)

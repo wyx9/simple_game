@@ -1,5 +1,5 @@
 // game/config.go
-package game
+package engine
 
 import (
 	"os"

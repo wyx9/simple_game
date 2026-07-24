@@ -1,5 +1,5 @@
 // game/handle_msg.go
-package game
+package engine
 
 import (
 	"errors"

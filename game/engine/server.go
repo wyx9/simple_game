@@ -1,12 +1,12 @@
 // game/server.go
-package game
+package engine
 
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"simple_game/game/pkg"
 	"simple_game/game/tunnel"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -14,9 +14,9 @@ import (
 
 // Game 配置（在 main.go 中从 config 文件加载）
 var (
-	GameListenAddr  string
-	TokenSecret     []byte
-	agentConnMap    = make(map[string]pkg.NetConn) // tunnelID → Agent 连接
+	GameListenAddr string
+	TokenSecret    []byte
+	agentConnMap   = make(map[string]pkg.NetConn) // tunnelID → Agent 连接
 )
 
 // 握手消息结构（对应 spec 5.1b）

@@ -1,12 +1,12 @@
 package controller
 
 import (
-	"simple_game/game"
+	engine "simple_game/game/engine"
 )
 
 type BaseController struct {
 }
 
-func (this BaseController) Ctx(ctx interface{}) *game.Player {
-	return ctx.(*game.Player)
+func (this BaseController) Ctx(ctx interface{}) *engine.Player {
+	return ctx.(*engine.Player)
 }
